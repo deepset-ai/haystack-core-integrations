@@ -272,7 +272,9 @@ class FAISSDocumentStore:
                     continue
 
                 # Build a new instance instead of mutating score in place.
-                score = float(1 / (1 + dist)) if self.index_string == "Flat" else float(dist)
+                # Every index built here uses the L2 metric, so a smaller distance means a closer match whatever the
+                # index type. Map it to a score where higher is better, as the other document stores do.
+                score = float(1 / (1 + dist))
                 result_doc = replace(doc, score=score)
 
                 results.append(result_doc)
