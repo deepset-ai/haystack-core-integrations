@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/presidio-v3.1.0] - 2026-11-27
+
+### 🌀 Miscellaneous
+
+- !feat: adding a PresidioPIIHook (#4327)
+
 ## [integrations/presidio-v3.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
