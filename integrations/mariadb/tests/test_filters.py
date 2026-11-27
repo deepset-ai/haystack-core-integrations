@@ -105,6 +105,13 @@ class TestFilterConversion:
             {"field": "meta.tag", "operator": operator, "value": value}
         ) == (clause, params)
 
+    @pytest.mark.parametrize(("operator", "clause"), [("in", " WHERE FALSE"), ("not in", " WHERE TRUE")])
+    def test_in_operators_with_empty_list(self, operator, clause):
+        # "IN ()" is a syntax error in MariaDB
+        assert _convert_filters_to_where_clause_and_params(
+            {"field": "meta.tag", "operator": operator, "value": []}
+        ) == (clause, [])
+
     def test_top_level_field(self):
         assert _convert_filters_to_where_clause_and_params({"field": "id", "operator": "==", "value": "doc-1"}) == (
             " WHERE `id` = ?",
