@@ -145,12 +145,15 @@ class FAISSDocumentStore:
         if not documents:
             return 0
 
-        # Check for duplicates first if policy is FAIL
+        # Check for duplicates first if policy is FAIL, including IDs repeated within this batch,
+        # so that a failing batch is rejected before anything is written
         if policy == DuplicatePolicy.FAIL:
+            batch_ids: set[str] = set()
             for doc in documents:
-                if doc.id in self.documents:
+                if doc.id in self.documents or doc.id in batch_ids:
                     msg = f"Document with id '{doc.id}' already exists."
                     raise DuplicateDocumentError(msg)
+                batch_ids.add(doc.id)
 
         # Process documents. Pending vectors are keyed by document ID so that a later duplicate in the same
         # batch replaces the earlier one instead of leaving an orphaned vector in the FAISS index.
