@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/faiss-v3.1.0] - 2026-11-27
+
+### 🐛 Bug Fixes
+
+- *(faiss)* Keep searching when filters drop the first candidates (#4323)
+
+
 ## [integrations/faiss-v3.0.1] - 2026-11-09
 
 ### 🐛 Bug Fixes
