@@ -162,6 +162,9 @@ def _in(field: str, value: Any) -> tuple[str, list]:
     if not isinstance(value, list):
         msg = f"'in' operator requires a list value, got {type(value)}"
         raise FilterError(msg)
+    # MariaDB rejects an empty "IN ()" list: nothing matches it
+    if not value:
+        return "FALSE", []
     placeholders = ", ".join(["?"] * len(value))
     return f"{field} IN ({placeholders})", value
 
@@ -170,6 +173,9 @@ def _not_in(field: str, value: Any) -> tuple[str, list]:
     if not isinstance(value, list):
         msg = f"'not in' operator requires a list value, got {type(value)}"
         raise FilterError(msg)
+    # MariaDB rejects an empty "NOT IN ()" list: everything matches it
+    if not value:
+        return "TRUE", []
     placeholders = ", ".join(["?"] * len(value))
     return f"({field} IS NULL OR {field} NOT IN ({placeholders}))", value
 
