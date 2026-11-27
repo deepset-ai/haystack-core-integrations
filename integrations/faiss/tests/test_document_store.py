@@ -197,3 +197,18 @@ class TestFAISSDocumentStore(
 
     # get_metadata_field_unique_values behavior (search term, pagination, meta-prefix handling, non-string
     # type preservation, filter restriction) is covered by the inherited GetMetadataFieldUniqueValuesTest mixin.
+
+
+@pytest.mark.parametrize("index_string", ["Flat", "HNSW32"])
+def test_search_scores_higher_for_closer_documents(index_string):
+    store = FAISSDocumentStore(embedding_dim=4, index_string=index_string)
+    store.write_documents(
+        [
+            Document(id="near", content="near", embedding=[1.0, 0.0, 0.0, 0.0]),
+            Document(id="far", content="far", embedding=[0.0, 0.0, 0.0, 5.0]),
+        ]
+    )
+    results = store.search([1.0, 0.0, 0.0, 0.0], top_k=2)
+    assert [doc.id for doc in results] == ["near", "far"]
+    assert results[0].score > results[1].score
+    assert all(0.0 < doc.score <= 1.0 for doc in results)
