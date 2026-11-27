@@ -118,7 +118,7 @@ jobs:
       - name: AWS authentication
         id: aws-auth
         if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/'))
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
