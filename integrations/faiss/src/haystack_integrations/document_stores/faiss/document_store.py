@@ -246,11 +246,7 @@ class FAISSDocumentStore:
         # Ensure embedding format
         query_vec = np.array([query_embedding], dtype="float32")
 
-        # Search in FAISS
-        # Valid strategy for pre-filtering vs post-filtering:
-        # Since FAISS `IndexIDMap` doesn't support pre-filtering natively comfortably
-        # without `RangeSearch` or specialized impls, we fetch more and filter post-retrieval.
-
+        # Filters are checked in Python on the documents, so they are applied to the FAISS hits (post-filtering).
         # If too few of the fetched neighbours match the filters, search once more over the whole index, so matching
         # documents further away are not missed. One full search is cheaper than growing k step by step: exhaustive
         # indexes like "Flat" compare against every vector whatever k is, and each retry re-filters the same hits.
