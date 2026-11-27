@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/deepeval-v2.1.0] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- Raise deepeval pin to >=4.1.7 (#4330)
+
+
 ## [integrations/deepeval-v2.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes

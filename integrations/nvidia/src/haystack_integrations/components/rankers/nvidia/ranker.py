@@ -134,7 +134,7 @@ class NvidiaRanker:
             self,
             model=self.model,
             top_k=self.top_k,
-            truncate=self.truncate,
+            truncate=str(self.truncate) if self.truncate is not None else None,
             api_url=self.api_url,
             api_key=self.api_key.to_dict() if self.api_key else None,
             query_prefix=self.query_prefix,

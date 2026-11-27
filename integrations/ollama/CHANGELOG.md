@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/ollama-v7.1.1] - 2026-11-26
+
+### 🐛 Bug Fixes
+
+- Ollama - map done_reason "length" to finish_reason "length" (#4303)
+
+
+## [integrations/ollama-v7.1.0] - 2026-11-25
+
+### 🚀 Features
+
+- Strengthen Ollama retry mechanism (#4328)
+
+### 🐛 Bug Fixes
+
+- Ollama - handle streamed tool calls without arguments (#4315)
+
+
 ## [integrations/ollama-v7.0.2] - 2026-10-16
 
 ### 🐛 Bug Fixes

@@ -3,6 +3,7 @@ loaders:
       - haystack_integrations.components.extractors.presidio.presidio_entity_extractor
       - haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner
       - haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner
+      - haystack_integrations.hooks.presidio.presidio_pii_hook
     search_path: [../src]
 processors:
   - type: filter

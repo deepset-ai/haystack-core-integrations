@@ -24,12 +24,8 @@ class TestPresidioEntityExtractor:
         extractor = PresidioEntityExtractor(language="fr")
         mock_nlp_engine = MagicMock()
         with (
-            patch(
-                "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.NlpEngineProvider"
-            ) as mock_provider_cls,
-            patch(
-                "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.AnalyzerEngine"
-            ) as mock_analyzer_cls,
+            patch("haystack_integrations.common.presidio.utils.NlpEngineProvider") as mock_provider_cls,
+            patch("haystack_integrations.common.presidio.utils.AnalyzerEngine") as mock_analyzer_cls,
         ):
             mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
             extractor.warm_up()
@@ -51,12 +47,8 @@ class TestPresidioEntityExtractor:
         extractor = PresidioEntityExtractor(language="fr", models=models)
         mock_nlp_engine = MagicMock()
         with (
-            patch(
-                "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.NlpEngineProvider"
-            ) as mock_provider_cls,
-            patch(
-                "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.AnalyzerEngine"
-            ) as mock_analyzer_cls,
+            patch("haystack_integrations.common.presidio.utils.NlpEngineProvider") as mock_provider_cls,
+            patch("haystack_integrations.common.presidio.utils.AnalyzerEngine") as mock_analyzer_cls,
         ):
             mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
             extractor.warm_up()

@@ -72,6 +72,7 @@ class LiteLLMChatGenerator:
         model: str = "openai/gpt-4o",
         streaming_callback: StreamingCallbackT | None = None,
         api_base_url: str | None = None,
+        timeout: float | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
     ) -> None:
@@ -89,6 +90,8 @@ class LiteLLMChatGenerator:
             A callback function invoked with each new StreamingChunk.
         :param api_base_url:
             Custom API base URL (e.g. for a self-hosted LiteLLM proxy).
+        :param timeout:
+            Timeout in seconds for API requests. When omitted, LiteLLM uses its default timeout.
         :param generation_kwargs:
             Additional parameters passed to litellm.completion().
             See https://docs.litellm.ai/docs/completion/input for details.
@@ -99,6 +102,7 @@ class LiteLLMChatGenerator:
         self.api_key = api_key
         self.streaming_callback = streaming_callback
         self.api_base_url = api_base_url
+        self.timeout = timeout
         self.generation_kwargs = generation_kwargs or {}
         self.tools = tools
 
@@ -117,6 +121,8 @@ class LiteLLMChatGenerator:
             extra["api_key"] = self.api_key.resolve_value()
         if self.api_base_url:
             extra["api_base"] = self.api_base_url
+        if self.timeout is not None:
+            extra["timeout"] = self.timeout
 
         flattened_tools = flatten_tools_or_toolsets(tools if tools is not None else self.tools)
         _check_duplicate_tool_names(flattened_tools)
@@ -247,6 +253,7 @@ class LiteLLMChatGenerator:
             api_key=self.api_key.to_dict() if self.api_key else None,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
+            timeout=self.timeout,
             generation_kwargs=self.generation_kwargs,
             tools=serialize_tools_or_toolset(self.tools),
         )

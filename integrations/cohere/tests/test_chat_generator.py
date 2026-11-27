@@ -426,9 +426,22 @@ class TestComponentLifecycle:
         with pytest.raises(ValueError, match="MISSING_COHERE_API_KEY"):
             component.warm_up()
 
+    @pytest.mark.parametrize("options", [{"max_retries": 0}, {"timeout": 10.0}], ids=["zero_retries", "timeout"])
     @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
-    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.HTTPXClient")
-    def test_warm_up_is_idempotent(self, mock_httpx_cls, mock_client_cls):
+    def test_warm_up_passes_only_explicit_timeout_and_max_retries_to_client(self, mock_client_cls, options):
+        component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), **options)
+
+        component.warm_up()
+
+        mock_client_cls.assert_called_once_with(
+            api_key="test-api-key",
+            base_url="https://api.cohere.com",
+            client_name="haystack",
+            **options,
+        )
+
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
         component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), max_retries=2)
 
         component.warm_up()
@@ -438,15 +451,13 @@ class TestComponentLifecycle:
             api_key="test-api-key",
             base_url="https://api.cohere.com",
             client_name="haystack",
-            httpx_client=mock_httpx_cls.return_value,
+            max_retries=2,
         )
-        mock_httpx_cls.assert_called_once()
         assert component.client is mock_client_cls.return_value
         assert component.async_client is None
 
     @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncClientV2")
-    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncHTTPXClient")
-    async def test_warm_up_async_is_idempotent(self, mock_httpx_cls, mock_client_cls):
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
         component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), max_retries=2)
 
         await component.warm_up_async()
@@ -456,9 +467,8 @@ class TestComponentLifecycle:
             api_key="test-api-key",
             base_url="https://api.cohere.com",
             client_name="haystack",
-            httpx_client=mock_httpx_cls.return_value,
+            max_retries=2,
         )
-        mock_httpx_cls.assert_called_once()
         assert component.async_client is mock_client_cls.return_value
         assert component.client is None
 

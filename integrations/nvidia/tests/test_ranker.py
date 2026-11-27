@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from haystack import Document
+from haystack import Document, Pipeline
 from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
 
@@ -62,6 +62,18 @@ class TestSerialization:
                 "timeout": 60.0,
             },
         }
+
+    def test_to_dict_with_truncate(self) -> None:
+        client = NvidiaRanker(truncate="END")
+        data = client.to_dict()
+        assert data["init_parameters"]["truncate"] == "END"
+        assert type(data["init_parameters"]["truncate"]) is str
+
+    def test_pipeline_yaml_roundtrip_with_truncate(self) -> None:
+        pipeline = Pipeline()
+        pipeline.add_component("ranker", NvidiaRanker(truncate=RankerTruncateMode.END))
+        loaded = Pipeline.loads(pipeline.dumps())
+        assert loaded.get_component("ranker").truncate == RankerTruncateMode.END
 
     def test_from_dict(self) -> None:
         client = component_from_dict(

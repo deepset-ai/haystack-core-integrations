@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/minicpm_ocr-v1.0.0] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- *(minicpm_ocr)* Render PDFs with pypdfium2 and drop AGPL-licensed PyMuPDF (#4306)
+
+
 ## [integrations/minicpm_ocr-v0.1.0] - 2026-11-12
 
 ### 🚀 Features
