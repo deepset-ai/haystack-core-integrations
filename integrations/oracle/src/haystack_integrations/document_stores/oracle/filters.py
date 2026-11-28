@@ -88,6 +88,11 @@ class FilterTranslator:
             if not isinstance(value, list):
                 msg = f"'in' / 'not in' filter values must be a list, got {type(value).__name__!r}"
                 raise FilterError(msg)
+            # Oracle rejects an empty "IN ()" / "NOT IN ()" list as a syntax error.
+            # An empty membership list matches nothing; an empty exclusion list
+            # matches every row, including NULLs.
+            if not value:
+                return "1=0" if op == "in" else "1=1"
             col = FilterTranslator._field_to_sql(field, value[0] if value else value)
             placeholders = []
             for v in value:
