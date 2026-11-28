@@ -61,7 +61,7 @@ class QdrantEmbeddingRetriever:
         :param document_store: An instance of QdrantDocumentStore.
         :param filters: A dictionary with filters to narrow down the search space.
         :param top_k: The maximum number of documents to retrieve. If using `group_by` parameters, maximum number of
-             groups to return.
+             groups to return. Zero returns an empty list.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
@@ -164,7 +164,7 @@ class QdrantEmbeddingRetriever:
         :param query_embedding: Embedding of the query.
         :param filters: A dictionary with filters to narrow down the search space.
         :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
-             groups to return.
+             groups to return. Zero returns an empty list.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param score_threshold: A minimal score threshold for the result.
@@ -180,10 +180,14 @@ class QdrantEmbeddingRetriever:
             filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
+        top_k = self._top_k if top_k is None else top_k
+        if top_k == 0:
+            return {"documents": []}
+
         docs = self._document_store._query_by_embedding(
             query_embedding=query_embedding,
             filters=filters,
-            top_k=top_k or self._top_k,
+            top_k=top_k,
             scale_score=scale_score if scale_score is not None else self._scale_score,
             return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
             score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
@@ -211,7 +215,7 @@ class QdrantEmbeddingRetriever:
         :param query_embedding: Embedding of the query.
         :param filters: A dictionary with filters to narrow down the search space.
         :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
-             groups to return.
+             groups to return. Zero returns an empty list.
         :param scale_score: Whether to scale the scores of the retrieved documents or not.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param score_threshold: A minimal score threshold for the result.
@@ -227,10 +231,14 @@ class QdrantEmbeddingRetriever:
             filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
+        top_k = self._top_k if top_k is None else top_k
+        if top_k == 0:
+            return {"documents": []}
+
         docs = await self._document_store._query_by_embedding_async(
             query_embedding=query_embedding,
             filters=filters,
-            top_k=top_k or self._top_k,
+            top_k=top_k,
             scale_score=scale_score if scale_score is not None else self._scale_score,
             return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
             score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
