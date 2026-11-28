@@ -158,3 +158,30 @@ def test_sql_injection_in_not_in_raises():
 def test_valid_nested_field_path_accepted():
     sql, _ = _translate({"field": "meta.author.city", "operator": "==", "value": "Berlin"})
     assert "'$.author.city'" in sql
+
+
+def test_in_operator_with_empty_list():
+    # Oracle rejects "IN ()" as a syntax error; an empty membership list
+    # should match no rows and still be valid SQL.
+    sql, params = _translate({"field": "meta.lang", "operator": "in", "value": []})
+    assert sql == "1=0"
+    assert params == {}
+
+
+def test_not_in_operator_with_empty_list():
+    # Oracle rejects "NOT IN ()" as a syntax error; an empty exclusion list
+    # should match every row, including NULLs.
+    sql, params = _translate({"field": "meta.lang", "operator": "not in", "value": []})
+    assert sql == "1=1"
+    assert params == {}
+
+
+def test_not_of_empty_in_list():
+    sql, params = _translate(
+        {
+            "operator": "NOT",
+            "conditions": [{"field": "meta.lang", "operator": "in", "value": []}],
+        }
+    )
+    assert sql == "(NOT 1=0)"
+    assert params == {}
