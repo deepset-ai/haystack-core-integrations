@@ -194,6 +194,9 @@ class TestQdrantRetriever:
         assert call_kwargs["filters"] == {"field": "meta.name", "operator": "==", "value": "foo"}
         assert res["documents"][0].content == "doc"
 
+        assert retriever.run(query_embedding=[0.5, 0.7], top_k=0) == {"documents": []}
+        mock_store._query_by_embedding.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_run_async(self):
         mock_store = Mock(spec=QdrantDocumentStore)
@@ -204,6 +207,9 @@ class TestQdrantRetriever:
 
         mock_store._query_by_embedding_async.assert_awaited_once()
         assert res["documents"][0].content == "doc"
+
+        assert await retriever.run_async(query_embedding=[0.5], top_k=0) == {"documents": []}
+        mock_store._query_by_embedding_async.assert_awaited_once()
 
     def test_run_falsy_runtime_values_override_init(self):
         mock_store = Mock(spec=QdrantDocumentStore)
@@ -239,6 +245,35 @@ class TestQdrantRetriever:
 
 @pytest.mark.integration
 class TestQdrantEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async", [False, True], ids=["sync", "async"])
+    @pytest.mark.parametrize(
+        ("init_top_k", "runtime", "expected"),
+        [
+            (2, {"top_k": 0}, []),
+            (2, {"top_k": None}, ["first", "second"]),
+            (2, {"top_k": 1}, ["first"]),
+            (0, {}, []),
+            (0, {"top_k": None}, []),
+            (0, {"top_k": 1}, ["first"]),
+        ],
+    )
+    async def test_runtime_top_k(self, use_async, init_top_k, runtime, expected):
+        store = QdrantDocumentStore(location=":memory:", embedding_dim=2)
+        retriever = QdrantEmbeddingRetriever(document_store=store, top_k=init_top_k)
+        documents = [
+            Document(id="first", embedding=[1.0, 0.0]),
+            Document(id="second", embedding=[0.0, 1.0]),
+            Document(id="third", embedding=[-1.0, 0.0]),
+        ]
+        if use_async:
+            await store.write_documents_async(documents)
+            result = await retriever.run_async(query_embedding=[1.0, 0.0], **runtime)
+        else:
+            store.write_documents(documents)
+            result = retriever.run(query_embedding=[1.0, 0.0], **runtime)
+        assert [doc.id for doc in result["documents"]] == expected
+
     @pytest.mark.parametrize("dimension", [None, 2])
     def test_run(self, dimension, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(
